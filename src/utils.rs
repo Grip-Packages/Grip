@@ -17,7 +17,7 @@ pub async fn extract_archive(archive_path: &Path, target_dir: &Path) -> Result<(
         use std::process::Command;
         
         Command::new("tar")
-            .args(&["xzf", &archive_path.to_string_lossy()])
+            .args(["xzf", &archive_path.to_string_lossy()])
             .current_dir(target_dir)
             .status()?;
     }
