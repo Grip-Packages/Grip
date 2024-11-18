@@ -158,7 +158,8 @@ impl RegistryManager {
         }
 
         let final_path = target_dir.join(filename);
-        tokio::fs::rename(&temp_path, &final_path).await?;
+        tokio::fs::copy(&temp_path, &final_path).await?;
+        tokio::fs::remove_file(&temp_path).await?;
 
         Ok(final_path)
     }
