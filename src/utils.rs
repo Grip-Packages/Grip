@@ -1,6 +1,13 @@
 use crate::error::Result;
 use std::path::Path;
-
+#[macro_export]
+macro_rules! print_debug {
+    ($($arg:tt)*) => {
+        if CLI.debug {
+            println!($($arg)*);
+        }
+    };
+}
 pub async fn extract_archive(archive_path: &Path, target_dir: &Path) -> Result<()> {
     if archive_path.extension().map_or(false, |ext| ext == "zip") {
         let file = std::fs::File::open(archive_path)?;
@@ -117,3 +124,4 @@ pub fn create_symlink(src: &Path, dst: &Path) -> Result<()> {
     }
     Ok(())
 }
+

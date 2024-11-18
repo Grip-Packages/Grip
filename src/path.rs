@@ -59,6 +59,7 @@ pub async fn add_to_path(path: &Path) -> Result<()> {
 
 #[cfg(unix)]
 pub async fn add_to_path(path: &Path) -> Result<()> {
+    
     use std::env;
     use std::io::Write;
     

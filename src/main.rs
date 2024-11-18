@@ -6,10 +6,13 @@ mod path;
 mod registry;
 mod utils;
 
+use std::sync::Arc;
+
 use cli::{Cli, Commands, RegistryCommands};
 use colored::Colorize;
 use config::Config;
 use error::Result;
+use lazy_static::lazy_static;
 use registry::RegistryManager;
 use clap::Parser;
 use dialoguer::Select;
@@ -18,6 +21,9 @@ struct Grip {
     config: Config,
     registry_manager: RegistryManager,
 }
+lazy_static!(
+    static ref CLI: Arc<Cli> = Arc::new(Cli::parse());
+);
 
 impl Grip {
     async fn new() -> Result<Self> {
@@ -192,6 +198,7 @@ impl Grip {
     }
 
     async fn init(&self) -> Result<()> {
+        
         let config = serde_json::json!({
             "name": "grip-project",
             "version": "0.1.0",
@@ -210,10 +217,14 @@ impl Grip {
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    let cli = Cli::parse();
-    let mut grip = Grip::new().await?;
 
-    match cli.command {
+    let cli = Arc::clone(&CLI);
+
+
+    print_debug!("dasdfasfd");
+    let mut grip = Grip::new().await?;
+    let command = cli.command.clone();
+    match command {
         Commands::Install { package, version, asset } => {
             grip.install(&package, version, asset).await?;
         }
