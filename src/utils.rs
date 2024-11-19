@@ -3,6 +3,7 @@ use std::path::Path;
 #[macro_export]
 macro_rules! print_debug {
     ($($arg:tt)*) => {
+        
         if CLI.debug {
             println!($($arg)*);
         }

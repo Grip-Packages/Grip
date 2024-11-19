@@ -62,6 +62,8 @@ pub async fn add_to_path(path: &Path) -> Result<()> {
     
     use std::env;
     use std::io::Write;
+
+    use crate::print_debug;
     
     let home = env::var("HOME")
         .map_err(|_| anyhow::anyhow!("Failed to get HOME directory"))?;
@@ -87,10 +89,19 @@ pub async fn add_to_path(path: &Path) -> Result<()> {
             .create(true)
             .open(&shell_rc)?
             .write_all(export_line.as_bytes())?;
+        std::process::Command::new("export")
+        .arg(format!("PATH={}:$PATH",path.to_string_lossy()))
+        .spawn().unwrap();
 
         println!("{} Added to PATH in {}", "✓".green(), shell_rc);
         println!("{} Run 'source {}' or restart your terminal for changes to take effect", "!".yellow(), shell_rc);
     } else {
+        //print_debug!("attempting to export path for good measure");
+        use crate::Cli;
+        print!("{}",path.to_string_lossy());
+        std::process::Command::new("export")
+        .arg(format!("PATH={}{}:$PATH",path.to_string_lossy(),))
+        .spawn().unwrap();
         println!("{} Directory already in PATH", "✓".green());
     }
     

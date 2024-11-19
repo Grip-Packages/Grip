@@ -22,7 +22,7 @@ struct Grip {
     registry_manager: RegistryManager,
 }
 lazy_static! {
-    static ref CLI: Arc<Cli> = Arc::new(Cli::parse());
+    pub static ref CLI: Arc<Cli> = Arc::new(Cli::parse());
 }
 
 impl Grip {
