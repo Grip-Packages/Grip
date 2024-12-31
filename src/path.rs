@@ -1,12 +1,10 @@
 use crate::error::Result;
 use colored::Colorize;
 use std::path::Path;
-
 #[cfg(windows)]
 pub async fn add_to_path(path: &Path) -> Result<()> {
     use winreg::enums::*;
     use winreg::RegKey;
-
     println!("{} Adding packages directory to PATH...", "→".blue());
     
     // Open the environment key
@@ -30,7 +28,6 @@ pub async fn add_to_path(path: &Path) -> Result<()> {
         
         environment.set_value("Path", &new_path)
             .map_err(|e| anyhow::anyhow!("Failed to update PATH: {}", e))?;
-
         // Notify Windows of the environment change
         unsafe {
             use winapi::um::winuser::{HWND_BROADCAST, WM_SETTINGCHANGE, SMTO_ABORTIFHUNG, SendMessageTimeoutW};
@@ -56,14 +53,10 @@ pub async fn add_to_path(path: &Path) -> Result<()> {
     
     Ok(())
 }
-
 #[cfg(unix)]
 pub async fn add_to_path(path: &Path) -> Result<()> {
-    
     use std::env;
     use std::io::Write;
-
-    use crate::print_debug;
     
     let home = env::var("HOME")
         .map_err(|_| anyhow::anyhow!("Failed to get HOME directory"))?;
@@ -77,7 +70,6 @@ pub async fn add_to_path(path: &Path) -> Result<()> {
     } else {
         format!("{}/.profile", home)
     };
-
     let export_line = format!("\nexport PATH=\"{}:$PATH\"", path.to_string_lossy());
     
     let rc_content = std::fs::read_to_string(&shell_rc)
@@ -89,19 +81,9 @@ pub async fn add_to_path(path: &Path) -> Result<()> {
             .create(true)
             .open(&shell_rc)?
             .write_all(export_line.as_bytes())?;
-        std::process::Command::new("export")
-        .arg(format!("PATH={}:$PATH",path.to_string_lossy()))
-        .spawn().unwrap();
-
         println!("{} Added to PATH in {}", "✓".green(), shell_rc);
         println!("{} Run 'source {}' or restart your terminal for changes to take effect", "!".yellow(), shell_rc);
     } else {
-        //print_debug!("attempting to export path for good measure");
-        use crate::Cli;
-        print!("{}",path.to_string_lossy());
-        std::process::Command::new("export")
-        .arg(format!("PATH={}{}:$PATH",path.to_string_lossy(),))
-        .spawn().unwrap();
         println!("{} Directory already in PATH", "✓".green());
     }
     
