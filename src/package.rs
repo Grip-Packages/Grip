@@ -1,5 +1,5 @@
-use serde::{Deserialize, Serialize};
 use crate::error::Result;
+use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -7,6 +7,7 @@ pub struct PackageInfo {
     pub name: String,
     pub repository: String,
     pub description: Option<String>,
+    pub executable_name: Option<String>,
 }
 
 pub struct Package {

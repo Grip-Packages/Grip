@@ -1,6 +1,14 @@
 use crate::error::Result;
 use std::path::Path;
-
+#[macro_export]
+macro_rules! print_debug {
+    ($($arg:tt)*) => {
+        
+        if CLI.debug {
+            println!($($arg)*);
+        }
+    };
+}
 pub async fn extract_archive(archive_path: &Path, target_dir: &Path) -> Result<()> {
     if archive_path.extension().map_or(false, |ext| ext == "zip") {
         let file = std::fs::File::open(archive_path)?;
@@ -10,7 +18,7 @@ pub async fn extract_archive(archive_path: &Path, target_dir: &Path) -> Result<(
         use std::process::Command;
         
         Command::new("tar")
-            .args(&["xzf", &archive_path.to_string_lossy()])
+            .args(["xzf", &archive_path.to_string_lossy()])
             .current_dir(target_dir)
             .status()?;
     }
@@ -117,3 +125,4 @@ pub fn create_symlink(src: &Path, dst: &Path) -> Result<()> {
     }
     Ok(())
 }
+
