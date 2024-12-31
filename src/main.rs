@@ -118,15 +118,40 @@ impl Grip {
         let downloaded_file = self.registry_manager
             .download_asset(download_url, filename, &target_dir)
             .await?;
-
+        let mut binary_name: Option<String> = None;
+        #[cfg(target_os = "windows")]
+        if package.info.executable_name.is_some() {
+            
+            let original_name = asset_obj["name"].to_string();
+            let path = std::path::Path::new(&original_name);
+            let extension = path.extension().unwrap_or_default().to_string_lossy();
+            binary_name = Some(format!("{}.{}", package_name, extension));
+        }
         // Handle archive extraction if needed
         if filename.ends_with(".zip") || filename.ends_with(".tar.gz") || filename.ends_with(".tgz") {
             println!("{} Extracting archive...", "→".blue());
-            utils::extract_archive(&downloaded_file, &target_dir);
+            utils::extract_archive(&downloaded_file, &target_dir).await?;
             println!("{} Extracted to {:?}", "✓".green(), target_dir);
-            
+            if package.info.executable_name.is_some() {
+                println!(" tesdafsdfasgsgeg3544ttwrergtdhyrwraesd{}",package.info.executable_name.clone().unwrap());
+                std::fs::rename(&downloaded_file, target_dir.join(package.info.executable_name.clone().unwrap()))?;
+            } else {
+                println!("no exe name")
+            }
             // Clean up archive after extraction
             std::fs::remove_file(downloaded_file)?;
+        } else {
+            if package.info.executable_name.is_some() {
+                println!(" tesdafsdfasgsgeg3544ttwrergtdhyrwraesd{}",package.info.executable_name.clone().unwrap());
+                let path = downloaded_file.parent().unwrap();
+                let name = binary_name.unwrap();
+                let name = name.trim_matches('"');
+                let bin_path = path.join(name);
+                println!("renaming {} to {}", downloaded_file.display(), bin_path.display());
+                std::fs::copy(downloaded_file, bin_path)?;
+            } else {
+                println!("no zip and no exe name")
+            }
         }
 
         // Add to PATH if needed
@@ -135,7 +160,6 @@ impl Grip {
         println!("{} Installation complete!", "✓".green());
         Ok(())
     }
-
     async fn handle_registry_command(&mut self, cmd: RegistryCommands) -> Result<()> {
         match cmd {
             RegistryCommands::Add { name, url, priority } => {

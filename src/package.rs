@@ -7,6 +7,7 @@ pub struct PackageInfo {
     pub name: String,
     pub repository: String,
     pub description: Option<String>,
+    pub executable_name: Option<String>,
 }
 
 pub struct Package {
