@@ -25,6 +25,7 @@ pub struct InstalledPackage {
     pub version: String,
     pub install_path: PathBuf,
     pub executable_path: Option<PathBuf>,
+    pub installed_versions: Vec<String>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Default)]
@@ -57,14 +58,24 @@ impl PackageState {
         install_path: PathBuf,
         executable_path: Option<PathBuf>,
     ) {
-        self.packages.insert(
-            name,
-            InstalledPackage {
-                version,
-                install_path,
-                executable_path,
-            },
-        );
+        if let Some(existing_package) = self.packages.get_mut(&name) {
+            if !existing_package.installed_versions.contains(&version) {
+                existing_package.installed_versions.push(version.clone());
+            }
+            existing_package.version = version;
+            existing_package.install_path = install_path;
+            existing_package.executable_path = executable_path;
+        } else {
+            self.packages.insert(
+                name,
+                InstalledPackage {
+                    version: version.clone(),
+                    install_path,
+                    executable_path,
+                    installed_versions: vec![version],
+                },
+            );
+        }
     }
 
     pub fn remove_package(&mut self, name: &str) -> Option<InstalledPackage> {
@@ -199,8 +210,7 @@ impl Grip {
             .download_asset(download_url, filename, &target_dir)
             .await?;
 
-        if filename.ends_with(".zip") || filename.ends_with(".tar.gz") || filename.ends_with(".tgz")
-        {
+        if filename.ends_with(".zip") || filename.ends_with(".tar.gz") || filename.ends_with(".tgz") {
             println!("{} Extracting archive...", "→".blue());
             utils::extract_archive(&downloaded_file, &target_dir);
             println!("{} Extracted to {:?}", "✓".green(), target_dir);
@@ -226,10 +236,7 @@ impl Grip {
 
         self.package_state.add_package(
             package_name.to_string(),
-            release["tag_name"]
-                .as_str()
-                .unwrap_or("unknown")
-                .to_string(),
+            release["tag_name"].as_str().unwrap_or("unknown").to_string(),
             target_dir.clone(),
             executable_path,
         );
@@ -318,10 +325,11 @@ impl Grip {
         println!("{} Installed packages:", "→".blue());
         for (name, package) in self.package_state.list_packages() {
             println!(
-                "  {} {} (version: {})",
+                "  {} {} (current: {}, all versions: {})",
                 "→".blue(),
                 name.cyan(),
-                package.version
+                package.version,
+                package.installed_versions.join(", ")
             );
         }
         Ok(())
