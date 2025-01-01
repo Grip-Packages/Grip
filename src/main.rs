@@ -6,10 +6,10 @@ mod path;
 mod registry;
 mod utils;
 
-use std::fs::rename;
-use std::collections::HashMap;
-use std::path::PathBuf;
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
+use std::fs::rename;
+use std::path::PathBuf;
 
 use clap::Parser;
 use cli::{Cli, Commands, RegistryCommands};
@@ -50,12 +50,21 @@ impl PackageState {
         Ok(())
     }
 
-    pub fn add_package(&mut self, name: String, version: String, install_path: PathBuf, executable_path: Option<PathBuf>) {
-        self.packages.insert(name, InstalledPackage {
-            version,
-            install_path,
-            executable_path,
-        });
+    pub fn add_package(
+        &mut self,
+        name: String,
+        version: String,
+        install_path: PathBuf,
+        executable_path: Option<PathBuf>,
+    ) {
+        self.packages.insert(
+            name,
+            InstalledPackage {
+                version,
+                install_path,
+                executable_path,
+            },
+        );
     }
 
     pub fn remove_package(&mut self, name: &str) -> Option<InstalledPackage> {
@@ -190,7 +199,8 @@ impl Grip {
             .download_asset(download_url, filename, &target_dir)
             .await?;
 
-        if filename.ends_with(".zip") || filename.ends_with(".tar.gz") || filename.ends_with(".tgz") {
+        if filename.ends_with(".zip") || filename.ends_with(".tar.gz") || filename.ends_with(".tgz")
+        {
             println!("{} Extracting archive...", "→".blue());
             utils::extract_archive(&downloaded_file, &target_dir);
             println!("{} Extracted to {:?}", "✓".green(), target_dir);
@@ -199,7 +209,9 @@ impl Grip {
             if let Some(executable_name) = package.info.executable_name.clone() {
                 let mut new_pathbuf = downloaded_file.clone();
                 new_pathbuf.set_file_name(executable_name);
-                new_pathbuf.set_extension(downloaded_file.extension().unwrap());
+                if let Some(extension) = downloaded_file.extension() {
+                    new_pathbuf.set_extension(extension);
+                }
                 rename(downloaded_file, new_pathbuf)?;
             }
         }
@@ -214,7 +226,10 @@ impl Grip {
 
         self.package_state.add_package(
             package_name.to_string(),
-            release["tag_name"].as_str().unwrap_or("unknown").to_string(),
+            release["tag_name"]
+                .as_str()
+                .unwrap_or("unknown")
+                .to_string(),
             target_dir.clone(),
             executable_path,
         );
@@ -227,7 +242,11 @@ impl Grip {
 
     async fn handle_registry_command(&mut self, cmd: RegistryCommands) -> Result<()> {
         match cmd {
-            RegistryCommands::Add { name, url, priority } => {
+            RegistryCommands::Add {
+                name,
+                url,
+                priority,
+            } => {
                 if self.config.registries.iter().any(|r| r.name == name) {
                     anyhow::bail!("Registry '{}' already exists", name);
                 }
