@@ -1,41 +1,36 @@
 use crate::error::Result;
-use std::path::Path;
-#[macro_export]
-macro_rules! print_debug {
-    ($($arg:tt)*) => {
-        
-        if CLI.debug {
-            println!($($arg)*);
-        }
-    };
-}
+use std::path::{Path, PathBuf};
+
 pub async fn extract_archive(archive_path: &Path, target_dir: &Path) -> Result<()> {
     if archive_path.extension().map_or(false, |ext| ext == "zip") {
         let file = std::fs::File::open(archive_path)?;
         let mut archive = zip::ZipArchive::new(file)?;
         archive.extract(target_dir)?;
-    } else if archive_path.extension().map_or(false, |ext| ext == "gz" || ext == "tgz") {
+    } else if archive_path
+        .extension()
+        .map_or(false, |ext| ext == "gz" || ext == "tgz")
+    {
         use std::process::Command;
-        
+
         Command::new("tar")
-            .args(["xzf", &archive_path.to_string_lossy()])
+            .args(&["xzf", &archive_path.to_string_lossy()])
             .current_dir(target_dir)
             .status()?;
     }
-    
+
     Ok(())
 }
 
 pub fn get_platform() -> &'static str {
     #[cfg(target_os = "windows")]
     return "windows";
-    
+
     #[cfg(target_os = "macos")]
     return "macos";
-    
+
     #[cfg(target_os = "linux")]
     return "linux";
-    
+
     #[cfg(not(any(target_os = "windows", target_os = "macos", target_os = "linux")))]
     return "unknown";
 }
@@ -43,10 +38,10 @@ pub fn get_platform() -> &'static str {
 pub fn get_arch() -> &'static str {
     #[cfg(target_arch = "x86_64")]
     return "x86_64";
-    
+
     #[cfg(target_arch = "aarch64")]
     return "aarch64";
-    
+
     #[cfg(not(any(target_arch = "x86_64", target_arch = "aarch64")))]
     return "unknown";
 }
@@ -54,7 +49,7 @@ pub fn get_arch() -> &'static str {
 pub fn get_binary_extension() -> &'static str {
     #[cfg(target_os = "windows")]
     return "exe";
-    
+
     #[cfg(not(target_os = "windows"))]
     return "";
 }
@@ -64,7 +59,7 @@ pub fn is_binary(path: &Path) -> bool {
     if let Some(extension) = path.extension() {
         #[cfg(target_os = "windows")]
         return extension == "exe";
-        
+
         #[cfg(not(target_os = "windows"))]
         {
             // On Unix systems, check if the file is executable
@@ -92,12 +87,12 @@ pub fn make_executable(path: &Path) -> Result<()> {
 /// Expand environment variables in a path string
 pub fn expand_path(path: &str) -> String {
     let mut result = path.to_string();
-    
+
     if let Ok(home) = std::env::var("HOME") {
         result = result.replace("$HOME", &home);
         result = result.replace("~", &home);
     }
-    
+
     #[cfg(windows)]
     {
         use std::env;
@@ -105,7 +100,17 @@ pub fn expand_path(path: &str) -> String {
             result = result.replace(&format!("%{}%", key), &value);
         }
     }
-    
+
+    result
+}
+
+pub fn change_file_name(path: impl AsRef<Path>, name: String) -> PathBuf {
+    let path = path.as_ref();
+    let mut result = path.to_owned();
+    result.set_file_name(name);
+    if let Some(ext) = path.extension() {
+        result.set_extension(ext);
+    }
     result
 }
 
@@ -125,4 +130,3 @@ pub fn create_symlink(src: &Path, dst: &Path) -> Result<()> {
     }
     Ok(())
 }
-

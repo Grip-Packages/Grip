@@ -6,7 +6,10 @@ mod path;
 mod registry;
 mod utils;
 
-use std::sync::Arc;
+use std::fs::rename;
+use std::collections::HashMap;
+use std::path::PathBuf;
+use serde::{Deserialize, Serialize};
 
 use clap::Parser;
 use cli::{Cli, Commands, RegistryCommands};
@@ -14,15 +17,64 @@ use colored::Colorize;
 use config::Config;
 use dialoguer::Select;
 use error::Result;
-use lazy_static::lazy_static;
 use registry::RegistryManager;
+use tokio::fs::{set_permissions, File};
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct InstalledPackage {
+    pub version: String,
+    pub install_path: PathBuf,
+    pub executable_path: Option<PathBuf>,
+}
+
+#[derive(Serialize, Deserialize, Debug, Default)]
+pub struct PackageState {
+    packages: HashMap<String, InstalledPackage>,
+}
+
+impl PackageState {
+    pub fn load(data_dir: &PathBuf) -> Result<Self> {
+        let state_file = data_dir.join("package_state.json");
+        if state_file.exists() {
+            let content = std::fs::read_to_string(state_file)?;
+            Ok(serde_json::from_str(&content)?)
+        } else {
+            Ok(Self::default())
+        }
+    }
+
+    pub fn save(&self, data_dir: &PathBuf) -> Result<()> {
+        let state_file = data_dir.join("package_state.json");
+        let content = serde_json::to_string_pretty(self)?;
+        std::fs::write(state_file, content)?;
+        Ok(())
+    }
+
+    pub fn add_package(&mut self, name: String, version: String, install_path: PathBuf, executable_path: Option<PathBuf>) {
+        self.packages.insert(name, InstalledPackage {
+            version,
+            install_path,
+            executable_path,
+        });
+    }
+
+    pub fn remove_package(&mut self, name: &str) -> Option<InstalledPackage> {
+        self.packages.remove(name)
+    }
+
+    pub fn get_package(&self, name: &str) -> Option<&InstalledPackage> {
+        self.packages.get(name)
+    }
+
+    pub fn list_packages(&self) -> Vec<(&String, &InstalledPackage)> {
+        self.packages.iter().collect()
+    }
+}
 
 struct Grip {
     config: Config,
     registry_manager: RegistryManager,
-}
-lazy_static! {
-    pub static ref CLI: Arc<Cli> = Arc::new(Cli::parse());
+    package_state: PackageState,
 }
 
 impl Grip {
@@ -34,23 +86,24 @@ impl Grip {
         std::fs::create_dir_all(&data_dir)?;
 
         let config = Config::load()?;
-        let registry_manager = RegistryManager::new(data_dir);
+        let registry_manager = RegistryManager::new(data_dir.clone());
+        let package_state = PackageState::load(&data_dir)?;
 
         Ok(Self {
             config,
             registry_manager,
+            package_state,
         })
     }
 
     async fn install(
-        &self,
+        &mut self,
         package_name: &str,
         version: Option<String>,
         asset: Option<String>,
     ) -> Result<()> {
         println!("{} Looking up package {}", "→".blue(), package_name.cyan());
 
-        // Find package in registry
         let package = self
             .registry_manager
             .find_package(&self.config.registries, package_name)
@@ -62,7 +115,6 @@ impl Grip {
             package.info.repository.cyan()
         );
 
-        // Get releases from GitHub
         let releases = self
             .registry_manager
             .get_releases(&package.info.repository)
@@ -72,7 +124,6 @@ impl Grip {
             anyhow::bail!("No releases found for package '{}'", package_name);
         }
 
-        // Select release version
         let release = match version {
             Some(ref v) => releases
                 .iter()
@@ -95,7 +146,6 @@ impl Grip {
             }
         };
 
-        // Select asset
         let assets = release["assets"]
             .as_array()
             .ok_or_else(|| anyhow::anyhow!("No assets found in release"))?;
@@ -128,7 +178,6 @@ impl Grip {
             .as_str()
             .ok_or_else(|| anyhow::anyhow!("Invalid asset name"))?;
 
-        // Download and install
         let target_dir = self
             .registry_manager
             .data_dir
@@ -136,60 +185,49 @@ impl Grip {
             .join(package_name)
             .join(release["tag_name"].as_str().unwrap_or("unknown"));
 
-        let downloaded_file = self
+        let mut downloaded_file = self
             .registry_manager
             .download_asset(download_url, filename, &target_dir)
             .await?;
-        let mut binary_name: Option<String> = None;
-        #[cfg(target_os = "windows")]
-        if package.info.executable_name.is_some() {
-            
-            let original_name = asset_obj["name"].to_string();
-            let path = std::path::Path::new(&original_name);
-            let extension = path.extension().unwrap_or_default().to_string_lossy();
-            binary_name = Some(format!("{}.{}", package_name, extension));
-        }
-        // Handle archive extraction if needed
-        if filename.ends_with(".zip") || filename.ends_with(".tar.gz") || filename.ends_with(".tgz")
-        {
+
+        if filename.ends_with(".zip") || filename.ends_with(".tar.gz") || filename.ends_with(".tgz") {
             println!("{} Extracting archive...", "→".blue());
-            utils::extract_archive(&downloaded_file, &target_dir).await?;
+            utils::extract_archive(&downloaded_file, &target_dir);
             println!("{} Extracted to {:?}", "✓".green(), target_dir);
-            if package.info.executable_name.is_some() {
-                println!(" tesdafsdfasgsgeg3544ttwrergtdhyrwraesd{}",package.info.executable_name.clone().unwrap());
-                std::fs::rename(&downloaded_file, target_dir.join(package.info.executable_name.clone().unwrap()))?;
-            } else {
-                println!("no exe name")
-            }
-            // Clean up archive after extraction
             std::fs::remove_file(downloaded_file)?;
         } else {
-            if package.info.executable_name.is_some() {
-                println!(" tesdafsdfasgsgeg3544ttwrergtdhyrwraesd{}",package.info.executable_name.clone().unwrap());
-                let path = downloaded_file.parent().unwrap();
-                let name = binary_name.unwrap();
-                let name = name.trim_matches('"');
-                let bin_path = path.join(name);
-                println!("renaming {} to {}", downloaded_file.display(), bin_path.display());
-                std::fs::copy(downloaded_file, bin_path)?;
-            } else {
-                println!("no zip and no exe name")
+            if let Some(executable_name) = package.info.executable_name.clone() {
+                let mut new_pathbuf = downloaded_file.clone();
+                new_pathbuf.set_file_name(executable_name);
+                new_pathbuf.set_extension(downloaded_file.extension().unwrap());
+                rename(downloaded_file, new_pathbuf)?;
             }
         }
 
-        // Add to PATH if needed
         path::add_to_path(&target_dir).await?;
+
+        let executable_path = if let Some(executable_name) = package.info.executable_name {
+            Some(target_dir.join(executable_name))
+        } else {
+            None
+        };
+
+        self.package_state.add_package(
+            package_name.to_string(),
+            release["tag_name"].as_str().unwrap_or("unknown").to_string(),
+            target_dir.clone(),
+            executable_path,
+        );
+
+        self.package_state.save(&self.registry_manager.data_dir)?;
 
         println!("{} Installation complete!", "✓".green());
         Ok(())
     }
+
     async fn handle_registry_command(&mut self, cmd: RegistryCommands) -> Result<()> {
         match cmd {
-            RegistryCommands::Add {
-                name,
-                url,
-                priority,
-            } => {
+            RegistryCommands::Add { name, url, priority } => {
                 if self.config.registries.iter().any(|r| r.name == name) {
                     anyhow::bail!("Registry '{}' already exists", name);
                 }
@@ -217,7 +255,6 @@ impl Grip {
 
                 self.config.save()?;
 
-                // Remove cached registry
                 let registry_path = self
                     .registry_manager
                     .data_dir
@@ -257,16 +294,27 @@ impl Grip {
         println!("{} Created grip.json", "✓".green());
         Ok(())
     }
+
+    async fn list_packages(&self) -> Result<()> {
+        println!("{} Installed packages:", "→".blue());
+        for (name, package) in self.package_state.list_packages() {
+            println!(
+                "  {} {} (version: {})",
+                "→".blue(),
+                name.cyan(),
+                package.version
+            );
+        }
+        Ok(())
+    }
 }
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    let cli = Arc::clone(&CLI);
-
-    print_debug!("Cli.debug == true");
+    let cli = Cli::parse();
     let mut grip = Grip::new().await?;
-    let command = cli.command.clone();
-    match command {
+
+    match cli.command {
         Commands::Install {
             package,
             version,
@@ -279,6 +327,9 @@ async fn main() -> Result<()> {
         }
         Commands::Init => {
             grip.init().await?;
+        }
+        Commands::List => {
+            grip.list_packages().await?;
         }
     }
 

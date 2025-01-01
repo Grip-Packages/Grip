@@ -1,15 +1,13 @@
 use clap::{Parser, Subcommand};
 
-#[derive(Debug, Parser,Clone)]
+#[derive(Debug, Parser)]
 #[command(author, version, about = "GitHub Release Package Manager")]
 pub struct Cli {
     #[command(subcommand)]
     pub command: Commands,
-    #[arg(short,long)]
-    pub debug: bool
 }
 
-#[derive(Debug, Subcommand,Clone)]
+#[derive(Debug, Subcommand)]
 pub enum Commands {
     /// Install a package
     Install {
@@ -29,9 +27,11 @@ pub enum Commands {
         #[command(subcommand)]
         cmd: RegistryCommands,
     },
+    /// List installed packages
+    List,
 }
 
-#[derive(Debug, Subcommand,Clone)]
+#[derive(Debug, Subcommand)]
 pub enum RegistryCommands {
     /// Add a new registry
     Add {

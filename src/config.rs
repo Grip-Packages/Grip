@@ -1,4 +1,5 @@
 use serde::{Deserialize, Serialize};
+use std::path::PathBuf;
 use crate::error::Result;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
