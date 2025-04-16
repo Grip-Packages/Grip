@@ -1,0 +1,21 @@
+name: Release
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  release:
+    name: Create Release
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 2
+
+      - name: Create Release
+        uses: tristanpoland/rust-multi-platform-release@v1
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
