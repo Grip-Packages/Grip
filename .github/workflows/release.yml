@@ -16,6 +16,6 @@ jobs:
           fetch-depth: 2
 
       - name: Create Release
-        uses: tristanpoland/Rust-Release-Action@0.1.0
+        uses: tristanpoland/Rust-Release-Action@0.2.0
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
